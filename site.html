@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smash Videos</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            transition: background 0.3s;
+        }
+        .dark-mode {
+            background: #1a1a1a;
+            color: white;
+        }
+        .video-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin: 10px;
+            padding: 10px;
+            background: white;
+        }
+        .dark-mode .video-card {
+            background: #333;
+            border-color: #444;
+        }
+    </style>
+</head>
+<body>
+    <button id="theme-toggle">Тёмная тема</button>
+    <div id="auth-block">
+        <button id="tg-login">Войти через Telegram</button>
+    </div>
+    <div id="user-info" style="display: none;">
+        <img id="user-avatar" width="50" style="border-radius: 50%;">
+        <span id="user-name"></span>
+    </div>
+    <div id="videos-container"></div>
+
+    <script>
+        // Тёмная тема
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+        });
+
+        // Авторизация через Telegram
+        document.getElementById('tg-login').addEventListener('click', () => {
+            if (window.Telegram.WebApp.initDataUnsafe) {
+                const user = Telegram.WebApp.initDataUnsafe.user;
+                document.getElementById('auth-block').style.display = 'none';
+                document.getElementById('user-info').style.display = 'block';
+                document.getElementById('user-avatar').src = user.photo_url;
+                document.getElementById('user-name').textContent = `${user.first_name} ${user.last_name || ''}`;
+                
+                // Сохраняем user_id для API
+                localStorage.setItem('tg_user_id', user.id);
+            } else {
+                alert('Откройте этот сайт через Telegram!');
+            }
+        });
+
+        // Загрузка видео
+        async function loadVideos() {
+            const response = await fetch('/api/videos');
+            const videos = await response.json();
+            const container = document.getElementById('videos-container');
+            
+            videos.forEach(video => {
+                const card = document.createElement('div');
+                card.className = 'video-card';
+                card.innerHTML = `
+                    <h3>${video.title}</h3>
+                    <p>Автор: ${video.author}</p>
+                    <button onclick="likeVideo(${video.id})">❤️ ${video.likes}</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        loadVideos();
+    </script>
+</body>
+</html>
