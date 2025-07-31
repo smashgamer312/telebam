@@ -3,85 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smash Videos</title>
+    <title>TG Messenger</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
             margin: 0;
-            padding: 0;
+            padding: 10px;
+            background: #f5f5f5;
             transition: background 0.3s;
         }
         .dark-mode {
-            background: #1a1a1a;
+            background: #1e1e1e;
             color: white;
         }
-        .video-card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            margin: 10px;
-            padding: 10px;
-            background: white;
+        #messages {
+            height: 70vh;
+            overflow-y: auto;
+            margin-bottom: 10px;
         }
-        .dark-mode .video-card {
-            background: #333;
-            border-color: #444;
+        .message {
+            padding: 8px;
+            margin: 5px;
+            border-radius: 8px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background: #007aff;
+            color: white;
+            margin-left: auto;
+        }
+        .other-message {
+            background: #e5e5ea;
+            margin-right: auto;
+        }
+        #message-input {
+            width: 80%;
+            padding: 8px;
+            border-radius: 15px;
+            border: 1px solid #ccc;
+        }
+        button {
+            padding: 8px 15px;
+            background: #007aff;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
     <button id="theme-toggle">Тёмная тема</button>
-    <div id="auth-block">
-        <button id="tg-login">Войти через Telegram</button>
-    </div>
-    <div id="user-info" style="display: none;">
-        <img id="user-avatar" width="50" style="border-radius: 50%;">
-        <span id="user-name"></span>
-    </div>
-    <div id="videos-container"></div>
+    <div id="user-info"></div>
+    <div id="messages"></div>
+    <input type="text" id="message-input" placeholder="Ваше сообщение...">
+    <button id="send-button">Отправить</button>
 
     <script>
-        // Тёмная тема
-        document.getElementById('theme-toggle').addEventListener('click', () => {
-            document.body.classList.toggle('dark-mode');
-        });
+        // Инициализация Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.expand();  // Раскрываем на весь экран
+        
+        // Тёмная тема (синхронизация с Telegram)
+        function updateTheme() {
+            document.body.classList.toggle('dark-mode', tg.colorScheme === 'dark');
+        }
+        tg.onEvent('themeChanged', updateTheme);
+        updateTheme();
 
-        // Авторизация через Telegram
-        document.getElementById('tg-login').addEventListener('click', () => {
-            if (window.Telegram.WebApp.initDataUnsafe) {
-                const user = Telegram.WebApp.initDataUnsafe.user;
-                document.getElementById('auth-block').style.display = 'none';
-                document.getElementById('user-info').style.display = 'block';
-                document.getElementById('user-avatar').src = user.photo_url;
-                document.getElementById('user-name').textContent = `${user.first_name} ${user.last_name || ''}`;
-                
-                // Сохраняем user_id для API
-                localStorage.setItem('tg_user_id', user.id);
-            } else {
-                alert('Откройте этот сайт через Telegram!');
+        // Авторизация
+        if (tg.initDataUnsafe.user) {
+            const user = tg.initDataUnsafe.user;
+            document.getElementById('user-info').innerHTML = `
+                <img src="${user.photo_url}" width="40" style="border-radius: 50%;">
+                <b>${user.first_name}</b>
+            `;
+        }
+
+        // Отправка сообщения
+        document.getElementById('send-button').addEventListener('click', async () => {
+            const text = document.getElementById('message-input').value.trim();
+            if (!text) return;
+
+            const response = await fetch('/api/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, user_id: tg.initDataUnsafe.user?.id })
+            });
+            
+            if (response.ok) {
+                document.getElementById('message-input').value = '';
+                loadMessages();
             }
         });
 
-        // Загрузка видео
-        async function loadVideos() {
-            const response = await fetch('/api/videos');
-            const videos = await response.json();
-            const container = document.getElementById('videos-container');
-            
-            videos.forEach(video => {
-                const card = document.createElement('div');
-                card.className = 'video-card';
-                card.innerHTML = `
-                    <h3>${video.title}</h3>
-                    <p>Автор: ${video.author}</p>
-                    <button onclick="likeVideo(${video.id})">❤️ ${video.likes}</button>
-                `;
-                container.appendChild(card);
+        // Загрузка сообщений
+        async function loadMessages() {
+            const response = await fetch('/api/messages');
+            const messages = await response.json();
+            const container = document.getElementById('messages');
+            container.innerHTML = '';
+
+            messages.forEach(msg => {
+                const isCurrentUser = msg.user_id === tg.initDataUnsafe.user?.id;
+                const msgElement = document.createElement('div');
+                msgElement.className = `message ${isCurrentUser ? 'user-message' : 'other-message'}`;
+                msgElement.textContent = msg.text;
+                container.appendChild(msgElement);
             });
+            container.scrollTop = container.scrollHeight;
         }
 
-        loadVideos();
+        // Обновляем сообщения каждые 3 секунды
+        setInterval(loadMessages, 3000);
+        loadMessages();
     </script>
 </body>
 </html>
